@@ -1,0 +1,492 @@
+@page "/"
+@using MindWeaver.ViewModels
+@using MindWeaver.Models
+@using MindWeaver.Contracts
+@using MindWeaver.Services
+@inject DashboardViewModel ViewModel
+@inject PluginLoaderService PluginService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Dashboard — MindWeaver</PageTitle>
+
+<MudStack Spacing="4">
+
+    @* ── Header ─────────────────────────────────────────────────────────── *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h5">
+            <MudIcon Icon="@Icons.Material.Filled.Dashboard" Class="mr-2 mb-1" />
+            Dashboard
+        </MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            Drag widgets to reorder
+        </MudText>
+    </MudStack>
+
+    <MudDivider />
+
+    @* ── Loading State ───────────────────────────────────────────────────── *@
+    @if (ViewModel.IsBusy)
+    {
+        <MudStack AlignItems="AlignItems.Center" Class="py-8">
+            <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-2">
+                Loading dashboard…
+            </MudText>
+        </MudStack>
+    }
+    else
+    {
+        @* ── Widget List ─────────────────────────────────────────────────── *@
+        <div id="mw-widget-list" class="mw-widget-list">
+            @foreach (var widget in ViewModel.Widgets)
+            {
+                <div @key="widget.Id"
+                     id="widget-@widget.Id"
+                     data-widget-id="@widget.Id"
+                     class="mw-drag-wrapper @(_draggedItem == widget ? "mw-dragging" : "") @(_dragOverId == widget.Id.ToString() ? "mw-drag-over" : "")">
+
+                    <MudCard Elevation="2" Class="rounded-lg mw-widget-card">
+                        @switch (widget.WidgetType)
+                        {
+                            case "Welcome":
+                                <MudCardHeader>
+                                    <CardHeaderAvatar>
+                                        <MudAvatar Color="Color.Primary" Variant="Variant.Filled">
+                                            <MudIcon Icon="@Icons.Material.Filled.WavingHand" />
+                                        </MudAvatar>
+                                    </CardHeaderAvatar>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">Welcome to MindWeaver</MudText>
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                            Your personal knowledge workspace
+                                        </MudText>
+                                    </CardHeaderContent>
+                                    <CardHeaderActions>
+                                        <div class="mw-drag-handle"
+                                             @onmousedown="(e) => OnHandleMouseDown(e, widget)"
+                                             title="Drag to reorder">
+                                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="mud-text-disabled mt-2" />
+                                        </div>
+                                    </CardHeaderActions>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body1">
+                                        Start capturing ideas, organizing notes into folders, and building your knowledge base.
+                                    </MudText>
+                                </MudCardContent>
+                                break;
+
+                            case "QuickActions":
+                                <MudCardHeader>
+                                    <CardHeaderAvatar>
+                                        <MudAvatar Color="Color.Secondary" Variant="Variant.Filled">
+                                            <MudIcon Icon="@Icons.Material.Filled.Bolt" />
+                                        </MudAvatar>
+                                    </CardHeaderAvatar>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">Quick Actions</MudText>
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Jump straight into your work</MudText>
+                                    </CardHeaderContent>
+                                    <CardHeaderActions>
+                                        <div class="mw-drag-handle"
+                                             @onmousedown="(e) => OnHandleMouseDown(e, widget)"
+                                             title="Drag to reorder">
+                                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="mud-text-disabled mt-2" />
+                                        </div>
+                                    </CardHeaderActions>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                                   StartIcon="@Icons.Material.Filled.Add" Href="/editor">
+                                            New Note
+                                        </MudButton>
+                                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary"
+                                                   StartIcon="@Icons.Material.Filled.ViewKanban" Href="/organizer">
+                                            Organizer
+                                        </MudButton>
+                                    </MudStack>
+                                </MudCardContent>
+                                break;
+
+                            case "Stats":
+                                <MudCardHeader>
+                                    <CardHeaderAvatar>
+                                        <MudAvatar Color="Color.Tertiary" Variant="Variant.Filled">
+                                            <MudIcon Icon="@Icons.Material.Filled.BarChart" />
+                                        </MudAvatar>
+                                    </CardHeaderAvatar>
+                                    <CardHeaderContent>
+                                        <MudText Typo="Typo.h6">Your Stats</MudText>
+                                        <MudText Typo="Typo.body2" Class="mud-text-secondary">Workspace at a glance</MudText>
+                                    </CardHeaderContent>
+                                    <CardHeaderActions>
+                                        <div class="mw-drag-handle"
+                                             @onmousedown="(e) => OnHandleMouseDown(e, widget)"
+                                             title="Drag to reorder">
+                                            <MudIcon Icon="@Icons.Material.Filled.DragIndicator" Class="mud-text-disabled mt-2" />
+                                        </div>
+                                    </CardHeaderActions>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudGrid Spacing="3">
+                                        <MudItem xs="4">
+                                            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                                                <MudText Typo="Typo.h4" Color="Color.Primary">@ViewModel.NoteCount</MudText>
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Notes</MudText>
+                                            </MudStack>
+                                        </MudItem>
+                                        <MudItem xs="4">
+                                            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                                                <MudText Typo="Typo.h4" Color="Color.Secondary">@ViewModel.FolderCount</MudText>
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Folders</MudText>
+                                            </MudStack>
+                                        </MudItem>
+                                        <MudItem xs="4">
+                                            <MudStack AlignItems="AlignItems.Center" Spacing="0">
+                                                <MudText Typo="Typo.h4" Color="Color.Tertiary">@ViewModel.Widgets.Count</MudText>
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">Widgets</MudText>
+                                            </MudStack>
+                                        </MudItem>
+                                    </MudGrid>
+                                </MudCardContent>
+                                break;
+                        }
+                    </MudCard>
+                </div>
+            }
+        </div>
+
+        @if (LoadedPlugins.Count > 0)
+        {
+            <MudDivider Class="my-4" />
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                <MudIcon Icon="@Icons.Material.Filled.Extension" Color="Color.Default" />
+                <MudText Typo="Typo.h6">External Plugins</MudText>
+                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                    @LoadedPlugins.Count loaded
+                </MudChip>
+            </MudStack>
+
+            <MudStack Spacing="3">
+                @foreach (var plugin in LoadedPlugins)
+                {
+                    <MudCard Elevation="2" Class="rounded-lg">
+                        <MudCardHeader>
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="Color.Dark" Variant="Variant.Filled">
+                                    <MudIcon Icon="@Icons.Material.Filled.Extension" />
+                                </MudAvatar>
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@plugin.Name</MudText>
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                                    @plugin.GetComponentType().Assembly.GetName().Name
+                                </MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Variant="Variant.Outlined" Class="mt-1">
+                                    Active
+                                </MudChip>
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <DynamicComponent Type="@plugin.GetComponentType()" />
+                        </MudCardContent>
+                    </MudCard>
+                }
+            </MudStack>
+        }
+    }
+</MudStack>
+
+<style>
+    .mw-widget-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .mw-drag-wrapper {
+        border-radius: 12px;
+        user-select: none;
+        -webkit-user-select: none;
+        border: 2px solid transparent;
+        transition: border 0.15s, opacity 0.2s, transform 0.15s;
+    }
+
+    .mw-drag-over {
+        border: 2px solid var(--mud-palette-primary) !important;
+    }
+
+    .mw-dragging {
+        opacity: 0.3;
+        transform: scale(0.97);
+    }
+
+    .mw-widget-card {
+        pointer-events: auto !important;
+        transition: box-shadow 0.2s;
+    }
+
+    .mw-drag-handle {
+        cursor: grab;
+        padding: 4px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.15s;
+    }
+
+        .mw-drag-handle:hover {
+            background: rgba(0, 0, 0, 0.07);
+        }
+
+        .mw-drag-handle:active {
+            cursor: grabbing;
+        }
+
+    .mw-ghost {
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        background: white;
+        border-radius: 12px;
+        padding: 14px 20px;
+        font-size: 14px;
+        font-weight: 600;
+        color: #333;
+        border-left: 4px solid var(--mud-palette-primary, #5c6bc0);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        transform: rotate(1.5deg) scale(1.03);
+        opacity: 0.92;
+        min-width: 180px;
+        white-space: nowrap;
+    }
+</style>
+
+@code {
+    private List<IWidgetPlugin> LoadedPlugins = new();
+    private DashboardWidget? _draggedItem;
+    private string? _dragOverId;
+    private DotNetObjectReference<Home>? _selfRef;
+
+    // Inline JS injected at runtime — no external file needed
+    private const string DragDropScript = """
+        window.MwDnD = (() => {
+            let dotNet = null;
+            let dragging = false;
+            let draggedId = null;
+            let ghost = null;
+            let lastHoveredId = null;
+            const THRESHOLD = 6;
+            let startX = 0, startY = 0;
+            let pendingId = null, pendingType = null;
+            let started = false;
+
+            function init(ref) {
+                dotNet = ref;
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            }
+
+            function destroy() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+                removeGhost();
+                reset();
+                dotNet = null;
+            }
+
+            function beginDrag(widgetId, widgetType, clientX, clientY) {
+                pendingId = widgetId;
+                pendingType = widgetType;
+                startX = clientX;
+                startY = clientY;
+                started = false;
+            }
+
+            function onMouseMove(e) {
+                if (pendingId && !started) {
+                    const dx = e.clientX - startX;
+                    const dy = e.clientY - startY;
+                    if (Math.sqrt(dx * dx + dy * dy) < THRESHOLD) return;
+                    started = true;
+                    dragging = true;
+                    draggedId = pendingId;
+                    createGhost(pendingType, e.clientX, e.clientY);
+                    dotNet.invokeMethodAsync('OnDragStarted', draggedId);
+                }
+
+                if (!dragging || !ghost) return;
+
+                ghost.style.left = (e.clientX + 16) + 'px';
+                ghost.style.top  = (e.clientY + 12) + 'px';
+
+                ghost.style.visibility = 'hidden';
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                ghost.style.visibility = 'visible';
+
+                if (el) {
+                    const wrapper = el.closest('[data-widget-id]');
+                    if (wrapper) {
+                        const hid = wrapper.getAttribute('data-widget-id');
+                        if (hid && hid !== draggedId && hid !== lastHoveredId) {
+                            lastHoveredId = hid;
+                            dotNet.invokeMethodAsync('OnDragOver', hid);
+                        }
+                        return;
+                    }
+                }
+
+                if (lastHoveredId !== null) {
+                    lastHoveredId = null;
+                    dotNet.invokeMethodAsync('OnDragOverNone');
+                }
+            }
+
+            async function onMouseUp(e) {
+                if (!started || !dragging) {
+                    pendingId = null; pendingType = null; started = false;
+                    return;
+                }
+
+                removeGhost();
+
+                ghost = null;
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                let dropped = false;
+
+                if (el) {
+                    const wrapper = el.closest('[data-widget-id]');
+                    if (wrapper) {
+                        const tid = wrapper.getAttribute('data-widget-id');
+                        if (tid && tid !== draggedId) {
+                            await dotNet.invokeMethodAsync('OnDropped', tid);
+                            dropped = true;
+                        }
+                    }
+                }
+
+                if (!dropped) await dotNet.invokeMethodAsync('OnDragCancelled');
+                reset();
+            }
+
+            function createGhost(widgetType, x, y) {
+                ghost = document.createElement('div');
+                ghost.className = 'mw-ghost';
+                ghost.innerText = '\u283f  ' + widgetType;
+                ghost.style.left = (x + 16) + 'px';
+                ghost.style.top  = (y + 12) + 'px';
+                document.body.appendChild(ghost);
+            }
+
+            function removeGhost() {
+                if (ghost) { ghost.remove(); ghost = null; }
+            }
+
+            function reset() {
+                dragging = false; draggedId = null; lastHoveredId = null;
+                pendingId = null; pendingType = null; started = false;
+            }
+
+            return { init, destroy, beginDrag };
+        })();
+        """;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ViewModel.PropertyChanged += OnViewModelChanged;
+        await ViewModel.LoadWidgetsAsync();
+        LoadedPlugins = await Task.Run(() => PluginService.LoadPlugins().ToList());
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Inject JS inline — no external file required
+            await JS.InvokeVoidAsync("eval", DragDropScript);
+
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("MwDnD.init", _selfRef);
+        }
+    }
+
+    public void Dispose()
+    {
+        ViewModel.PropertyChanged -= OnViewModelChanged;
+        _ = JS.InvokeVoidAsync("MwDnD.destroy");
+        _selfRef?.Dispose();
+    }
+
+    private void OnViewModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        => InvokeAsync(StateHasChanged);
+
+    private async Task OnHandleMouseDown(MouseEventArgs e, DashboardWidget widget)
+    {
+        if (e.Button == 0)
+            await JS.InvokeVoidAsync("MwDnD.beginDrag", widget.Id.ToString(), widget.WidgetType, e.ClientX, e.ClientY);
+    }
+
+    [JSInvokable]
+    public void OnDragStarted(string widgetId)
+    {
+        _draggedItem = ViewModel.Widgets.FirstOrDefault(w => w.Id.ToString() == widgetId);
+        _dragOverId = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnDragOver(string widgetId)
+    {
+        if (_dragOverId != widgetId)
+        {
+            _dragOverId = widgetId;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public void OnDragOverNone()
+    {
+        if (_dragOverId != null)
+        {
+            _dragOverId = null;
+            InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnDropped(string targetWidgetId)
+    {
+        _dragOverId = null;
+
+        if (_draggedItem is null)
+        {
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var target = ViewModel.Widgets.FirstOrDefault(w => w.Id.ToString() == targetWidgetId);
+
+        if (target is not null && target != _draggedItem)
+        {
+            var newIndex = ViewModel.Widgets.IndexOf(target);
+            await ViewModel.ReorderWidgetsAsync(_draggedItem, newIndex);
+        }
+
+        _draggedItem = null;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnDragCancelled()
+    {
+        _draggedItem = null;
+        _dragOverId = null;
+        InvokeAsync(StateHasChanged);
+    }
+}

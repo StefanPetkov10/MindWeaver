@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    NoteNativePage.xaml — "Focus Mode / Quick Capture"
+    ====================================================
+    A distraction-free note editor implemented with native MAUI XAML controls.
+    BindingContext is NoteViewModel, injected via the code-behind constructor.
+
+    Design pillars:
+      • Dark, high-contrast surface so the note content is the only focal point.
+      • Subtle separator lines and spacing — nothing competes with the text.
+      • Entry + Editor share the same clean style; buttons are full-width and
+        pill-shaped for thumb-friendly tap targets on mobile.
+      • IsBusy toggle dims the UI during async save / load operations.
+-->
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="MindWeaver.Views.NoteNativePage"
+             Title="{Binding Title}"
+             BackgroundColor="#0F1117"
+             Shell.NavBarIsVisible="True">
+
+    <!-- ═══════════════════════════════════════════════════════════════════════
+         Root overlay — dims the entire page while an async operation runs.
+         ══════════════════════════════════════════════════════════════════════ -->
+    <Grid RowDefinitions="Auto,*,Auto,Auto"
+          Padding="20,16,20,32"
+          RowSpacing="0">
+
+        <!-- ── Header row: page label + activity indicator ───────────────── -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="*,Auto"
+              Margin="0,0,0,20">
+
+            <Label Grid.Column="0"
+                   Text="Focus Mode"
+                   FontSize="13"
+                   FontAttributes="Bold"
+                   TextColor="#6C7A96"
+                   VerticalOptions="Center"
+                   CharacterSpacing="1.5"
+                   TextTransform="Uppercase"/>
+
+            <ActivityIndicator Grid.Column="1"
+                               IsRunning="{Binding IsBusy}"
+                               IsVisible="{Binding IsBusy}"
+                               Color="#7C6CF7"
+                               WidthRequest="22"
+                               HeightRequest="22"
+                               VerticalOptions="Center"/>
+        </Grid>
+
+        <!-- ── Editor surface ─────────────────────────────────────────────── -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Spacing="0">
+
+                <!-- Title field -->
+                <Label Text="TITLE"
+                       FontSize="10"
+                       FontAttributes="Bold"
+                       TextColor="#6C7A96"
+                       CharacterSpacing="1.8"
+                       Margin="4,0,0,6"/>
+
+                <Border Stroke="#2A2D3E"
+                        StrokeThickness="1"
+                        BackgroundColor="#1A1D2E"
+                        Padding="16,0"
+                        Margin="0,0,0,24">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="12"/>
+                    </Border.StrokeShape>
+                    <Entry x:Name="TitleEntry"
+                           Text="{Binding NoteTitle, Mode=TwoWay}"
+                           Placeholder="Give your thought a name…"
+                           PlaceholderColor="#3E4259"
+                           TextColor="#E8ECF4"
+                           FontSize="20"
+                           FontAttributes="Bold"
+                           BackgroundColor="Transparent"
+                           ReturnType="Next"
+                           ReturnCommand="{Binding FocusContentCommand}"
+                           HeightRequest="56"
+                           IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"/>
+                </Border>
+
+                <!-- Content field -->
+                <Label Text="CONTENT"
+                       FontSize="10"
+                       FontAttributes="Bold"
+                       TextColor="#6C7A96"
+                       CharacterSpacing="1.8"
+                       Margin="4,0,0,6"/>
+
+                <Border Stroke="#2A2D3E"
+                        StrokeThickness="1"
+                        BackgroundColor="#1A1D2E"
+                        Padding="16,12"
+                        Margin="0,0,0,8">
+                    <Border.StrokeShape>
+                        <RoundRectangle CornerRadius="12"/>
+                    </Border.StrokeShape>
+                    <Editor x:Name="ContentEditor"
+                            Text="{Binding Content, Mode=TwoWay}"
+                            Placeholder="Start writing — your thoughts deserve space…"
+                            PlaceholderColor="#3E4259"
+                            TextColor="#C8CED9"
+                            FontSize="16"
+                            BackgroundColor="Transparent"
+                            AutoSize="TextChanges"
+                            MinimumHeightRequest="220"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"/>
+                </Border>
+
+                <!-- Undo / Redo micro-toolbar -->
+                <HorizontalStackLayout HorizontalOptions="End"
+                                       Spacing="8"
+                                       Margin="0,4,4,0">
+
+                    <Button Text="↩ Undo"
+                            Command="{Binding UndoCommand}"
+                            FontSize="12"
+                            TextColor="#7C6CF7"
+                            BackgroundColor="Transparent"
+                            BorderColor="#2A2D3E"
+                            BorderWidth="1"
+                            CornerRadius="8"
+                            Padding="12,6"
+                            HeightRequest="34"/>
+
+                    <Button Text="↪ Redo"
+                            Command="{Binding RedoCommand}"
+                            FontSize="12"
+                            TextColor="#7C6CF7"
+                            BackgroundColor="Transparent"
+                            BorderColor="#2A2D3E"
+                            BorderWidth="1"
+                            CornerRadius="8"
+                            Padding="12,6"
+                            HeightRequest="34"/>
+                </HorizontalStackLayout>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- ── Status message ─────────────────────────────────────────────── -->
+        <Label Grid.Row="2"
+               Text="{Binding StatusMessage}"
+               FontSize="13"
+               TextColor="#6C7A96"
+               HorizontalOptions="Center"
+               Margin="0,12,0,0"
+               IsVisible="{Binding StatusMessage,
+                           Converter={StaticResource StringToBoolConverter}}"/>
+
+        <!-- ── Action buttons ─────────────────────────────────────────────── -->
+        <Grid Grid.Row="3"
+              ColumnDefinitions="*,16,*"
+              Margin="0,20,0,0">
+
+            <!-- Cancel / Go Back -->
+            <Button Grid.Column="0"
+                    Text="Cancel"
+                    Command="{Binding GoBackCommand}"
+                    TextColor="#9AA0B8"
+                    BackgroundColor="#1A1D2E"
+                    BorderColor="#2A2D3E"
+                    BorderWidth="1"
+                    CornerRadius="14"
+                    FontSize="15"
+                    FontAttributes="Bold"
+                    HeightRequest="52"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}"/>
+
+            <!-- Save -->
+            <Button Grid.Column="2"
+                    Text="Save Note"
+                    Command="{Binding SaveNoteCommand}"
+                    TextColor="#FFFFFF"
+                    CornerRadius="14"
+                    FontSize="15"
+                    FontAttributes="Bold"
+                    HeightRequest="52"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InvertedBoolConverter}}">
+                <Button.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#7C6CF7" Offset="0"/>
+                        <GradientStop Color="#5B8DEF" Offset="1"/>
+                    </LinearGradientBrush>
+                </Button.Background>
+            </Button>
+
+        </Grid>
+
+    </Grid>
+</ContentPage>

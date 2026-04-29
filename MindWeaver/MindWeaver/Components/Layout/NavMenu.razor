@@ -1,0 +1,67 @@
+@using MindWeaver.ViewModels
+@inject FoldersViewModel FoldersViewModel
+
+<MudNavMenu>
+
+    @* ── Core navigation ─────────────────────────────────────────────── *@
+    <MudNavLink Href="/"
+                Match="NavLinkMatch.All"
+                Icon="@Icons.Material.Filled.Home">
+        Home
+    </MudNavLink>
+
+    <MudNavLink Href="/editor"
+                Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.Edit">
+        New Note
+    </MudNavLink>
+
+    <MudNavLink Href="/organizer"
+                Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.ViewKanban">
+        Organizer
+    </MudNavLink>
+
+    <MudNavLink Href="/search-demo"
+                Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.Search">
+        Search
+    </MudNavLink>
+
+    <MudNavLink Href="/grid-demo"
+                Match="NavLinkMatch.Prefix"
+                Icon="@Icons.Material.Filled.TableChart">
+        Data Grid
+    </MudNavLink>
+
+    <MudDivider Class="my-2" />
+
+    @* ── Folders section ─────────────────────────────────────────────── *@
+    <MudNavGroup Title="Folders"
+                 Icon="@Icons.Material.Filled.Folder"
+                 Expanded="true">
+
+        @if (FoldersViewModel.IsBusy)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-3" />
+        }
+        else if (!FoldersViewModel.Folders.Any())
+        {
+            <MudText Typo="Typo.caption" Class="px-4 mud-text-secondary">
+                No folders yet
+            </MudText>
+        }
+        else
+        {
+            @foreach (var folder in FoldersViewModel.Folders)
+            {
+                <MudNavLink Href="@($"/folder/{folder.Id}")"
+                            Icon="@Icons.Material.Filled.FolderOpen">
+                    @folder.Name
+                </MudNavLink>
+            }
+        }
+
+    </MudNavGroup>
+
+</MudNavMenu>

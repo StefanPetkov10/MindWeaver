@@ -1,0 +1,148 @@
+@using System.Reflection
+@using MindWeaver.Attributes
+@typeparam TItem where TItem : class
+
+@* ─── DynamicFilterForm<TItem> ────────────────────────────────────────────────
+   Drop this component onto any page and pass the entity type you want to filter.
+   It discovers every property decorated with [Searchable], renders the correct
+   MudBlazor input control, and fires OnSearch with the populated filter dictionary
+   when the user clicks "Search".
+
+   Usage:
+     <DynamicFilterForm TItem="Note"   OnSearch="HandleNoteSearch" />
+     <DynamicFilterForm TItem="Folder" OnSearch="HandleFolderSearch" />
+*@
+
+<MudPaper Class="pa-4 mb-4" Elevation="2">
+
+    <MudText Typo="Typo.subtitle1" Class="mb-3">
+        <MudIcon Icon="@Icons.Material.Filled.FilterList" Class="mr-1" Style="vertical-align:middle"/>
+        Filter @typeof(TItem).Name
+    </MudText>
+
+    <MudGrid Spacing="2">
+
+        @foreach (var field in _searchableFields)
+        {
+            <MudItem xs="12" sm="6" md="4">
+
+                @* ── string property → text search ───────────────────────── *@
+                @if (field.PropertyType == typeof(string))
+                {
+                    <MudTextField T="string"
+                                  Label="@field.Label"
+                                  Value="@GetStringValue(field.PropertyName)"
+                                  ValueChanged="@(v => SetValue(field.PropertyName, v))"
+                                  Immediate="true"
+                                  Clearable="true"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+                }
+
+                @* ── DateTime property → date picker ─────────────────────── *@
+                else if (field.PropertyType == typeof(DateTime) || field.PropertyType == typeof(DateTime?))
+                {
+                    <MudDatePicker Label="@field.Label"
+                                   Date="@GetDateValue(field.PropertyName)"
+                                   DateChanged="@(v => SetValue(field.PropertyName, v))"
+                                   Clearable="true"
+                                   Variant="Variant.Outlined"
+                                   Margin="Margin.Dense" />
+                }
+
+            </MudItem>
+        }
+
+    </MudGrid>
+
+    <MudStack Row="true" Spacing="2" Class="mt-4">
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Search"
+                   OnClick="HandleSearch">
+            Search
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   OnClick="HandleReset">
+            Reset
+        </MudButton>
+    </MudStack>
+
+</MudPaper>
+
+@code {
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Fired when the user clicks "Search". Receives a dictionary of
+    /// PropertyName → value for every non-empty field.
+    /// </summary>
+    [Parameter]
+    public EventCallback<Dictionary<string, object?>> OnSearch { get; set; }
+
+    // ── Internal model ────────────────────────────────────────────────────────
+
+    // Discovered at init time via reflection — one entry per [Searchable] property.
+    private record SearchField(string PropertyName, string Label, Type PropertyType);
+
+    private List<SearchField> _searchableFields = new();
+
+    // Backing store for the form controls. Keys = PropertyName.
+    private Dictionary<string, object?> _filterValues = new();
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    protected override void OnInitialized()
+    {
+        // Discover every public property on TItem that carries [Searchable]
+        _searchableFields = typeof(TItem)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => new
+            {
+                Property = p,
+                Attr     = p.GetCustomAttribute<SearchableAttribute>()
+            })
+            .Where(x => x.Attr is not null)
+            .Select(x => new SearchField(x.Property.Name, x.Attr!.Label, x.Property.PropertyType))
+            .ToList();
+
+        // Pre-populate the dictionary with null slots so bindings don't throw
+        foreach (var field in _searchableFields)
+            _filterValues[field.PropertyName] = null;
+    }
+
+    // ── Helpers used by the markup ────────────────────────────────────────────
+
+    private string GetStringValue(string key)
+        => _filterValues.TryGetValue(key, out var v) && v is string s ? s : string.Empty;
+
+    private DateTime? GetDateValue(string key)
+        => _filterValues.TryGetValue(key, out var v) && v is DateTime dt ? dt : null;
+
+    private void SetValue(string key, object? value)
+        => _filterValues[key] = value;
+
+    // ── Button handlers ───────────────────────────────────────────────────────
+
+    private async Task HandleSearch()
+    {
+        // Pass a snapshot so the parent can't accidentally share our mutable dict
+        var snapshot = new Dictionary<string, object?>(_filterValues);
+        await OnSearch.InvokeAsync(snapshot);
+    }
+
+    private async Task HandleReset()
+    {
+        foreach (var field in _searchableFields)
+            _filterValues[field.PropertyName] = null;
+
+        // Notify parent with an empty dictionary — clears results
+        await OnSearch.InvokeAsync(new Dictionary<string, object?>());
+        StateHasChanged();
+    }
+}

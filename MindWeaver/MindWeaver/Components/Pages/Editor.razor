@@ -1,0 +1,248 @@
+@page "/editor"
+@page "/editor/{NoteId:guid}"
+
+@inject NoteViewModel NoteViewModel
+@inject ISnackbar Snackbar
+@inject INavigationService NavigationService
+
+@implements IDisposable
+
+<PageTitle>@NoteViewModel.NoteTitle — MindWeaver</PageTitle>
+
+<MudStack Spacing="3">
+
+    @* ── Toolbar ─────────────────────────────────────────────────────────── *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+
+        <MudText Typo="Typo.h5" Class="mud-text-secondary">
+            @(NoteViewModel.CurrentNoteId is null ? "New Note" : "Editing Note")
+        </MudText>
+
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+
+            @if (NoteViewModel.IsBusy)
+            {
+                <MudProgressCircular Size="Size.Small"
+                                     Indeterminate="true"
+                                     Color="Color.Primary" />
+            }
+
+            @if (!string.IsNullOrEmpty(NoteViewModel.StatusMessage))
+            {
+                <MudText Typo="Typo.body2" Color="Color.Success">
+                    @NoteViewModel.StatusMessage
+                </MudText>
+            }
+
+            <MudIconButton Icon="@Icons.Material.Filled.Undo"
+                           Title="Undo"
+                           Color="Color.Default"
+                           Disabled="@(!NoteViewModel.CanUndo)"
+                           OnClick="HandleUndo" />
+
+            <MudIconButton Icon="@Icons.Material.Filled.Redo"
+                           Title="Redo"
+                           Color="Color.Default"
+                           Disabled="@(!NoteViewModel.CanRedo)"
+                           OnClick="HandleRedo" />
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Save"
+                       Disabled="@NoteViewModel.IsBusy"
+                       OnClick="HandleSaveAsync">
+                Save
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.RestartAlt"
+                       Disabled="@NoteViewModel.IsBusy"
+                       OnClick="HandleReset">
+                New
+            </MudButton>
+
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Tertiary"
+                       StartIcon="@Icons.Material.Filled.Fullscreen"
+                       Disabled="@NoteViewModel.IsBusy"
+                       OnClick="OpenNativeFocusMode">
+                Native Focus Mode
+            </MudButton>
+
+        </MudStack>
+    </MudStack>
+
+    <MudDivider />
+
+    @* ── Editor + Preview ─────────────────────────────────────────────────── *@
+    <MudGrid Spacing="3">
+
+        <MudItem xs="12" md="6">
+            <MudStack Spacing="3">
+
+                <MudTextField T="string"
+                              Label="Title"
+                              Variant="Variant.Outlined"
+                              @bind-Value="NoteViewModel.NoteTitle"
+                              FullWidth="true"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Title"
+                              AdornmentColor="Color.Primary"
+                              Placeholder="Note title..." />
+
+                <MudTextField T="string"
+                              Label="Content (Markdown)"
+                              Variant="Variant.Outlined"
+                              @bind-Value="NoteViewModel.Content"
+                              Lines="22"
+                              Immediate="true"
+                              FullWidth="true"
+                              Placeholder="Write your markdown here..."
+                              Style="font-family: 'JetBrains Mono', 'Cascadia Code', monospace; font-size: 0.875rem;" />
+
+            </MudStack>
+        </MudItem>
+
+        <MudItem xs="12" md="6">
+            <MudPaper Elevation="0"
+                      Outlined="true"
+                      Class="pa-5"
+                      Style="min-height: 560px; overflow-y: auto;">
+
+                <MudText Typo="Typo.overline" Color="Color.Secondary" Class="mb-2 d-block">
+                    Live Preview
+                </MudText>
+
+                <MudDivider Class="mb-4" />
+
+                @if (string.IsNullOrWhiteSpace(NoteViewModel.Content))
+                {
+                    <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                        Start typing in the editor to see a live Markdown preview…
+                    </MudText>
+                }
+                else
+                {
+                    <div class="markdown-body">
+                        @((MarkupString)_previewHtml)
+                    </div>
+                }
+
+            </MudPaper>
+        </MudItem>
+
+    </MudGrid>
+</MudStack>
+
+
+@code {
+
+    /// <summary>
+    /// Optional route parameter — set when navigating from the Organizer
+    /// via /editor/{guid}. Null when creating a brand-new note via /editor.
+    /// </summary>
+    [Parameter]
+    public Guid? NoteId { get; set; }
+
+    private static readonly MarkdownPipeline _pipeline = new MarkdownPipelineBuilder()
+        .UseAdvancedExtensions()
+        .Build();
+
+    private string _previewHtml = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        NoteViewModel.PropertyChanged += OnViewModelPropertyChanged;
+
+        // If a NoteId was passed via the route, load that note.
+        if (NoteId.HasValue)
+        {
+            await NoteViewModel.LoadNoteCommand.ExecuteAsync(NoteId.Value);
+        }
+        else
+        {
+            NoteViewModel.Reset();
+        }
+
+        RebuildPreview();
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(NoteViewModel.Content))
+            RebuildPreview();
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void RebuildPreview()
+    {
+        _previewHtml = string.IsNullOrWhiteSpace(NoteViewModel.Content)
+            ? string.Empty
+            : Markdown.ToHtml(NoteViewModel.Content, _pipeline);
+    }
+
+    private void HandleUndo()
+    {
+        NoteViewModel.UndoCommand.Execute(null);
+        StateHasChanged();
+    }
+
+    private void HandleRedo()
+    {
+        NoteViewModel.RedoCommand.Execute(null);
+        StateHasChanged();
+    }
+
+    private async Task HandleSaveAsync()
+    {
+        try
+        {
+            await NoteViewModel.SaveNoteCommand.ExecuteAsync(null);
+
+            var msg = NoteViewModel.StatusMessage;
+            var severity = msg.StartsWith("Save failed", StringComparison.OrdinalIgnoreCase)
+                ? Severity.Error
+                : Severity.Success;
+
+            Snackbar.Add(msg, severity);
+        }
+        catch
+        {
+            Snackbar.Add("An unexpected error occurred while saving.", Severity.Error);
+        }
+    }
+
+    private void HandleReset()
+    {
+        NoteViewModel.Reset();
+        _previewHtml = string.Empty;
+        StateHasChanged();
+    }
+
+    /// <summary>
+    /// Hands off to the native MAUI Shell layer, pushing
+    /// <see cref="MindWeaver.Views.NoteNativePage"/> onto the navigation stack.
+    ///
+    /// Because <see cref="INavigationService"/> is registered as a Singleton
+    /// (<see cref="MindWeaver.Services.MauiNavigationService"/>), Blazor's
+    /// scoped DI container falls back to the root MAUI container and resolves
+    /// the same instance — no extra wiring needed.
+    ///
+    /// The ViewModel state (NoteTitle, Content, etc.) is NOT automatically
+    /// transferred; NoteNativePage will receive a fresh Transient NoteViewModel.
+    /// If you need to carry state across, persist first with SaveNoteAsync and
+    /// pass the NoteId as a Shell query-parameter:
+    ///   await NavigationService.NavigateToAsync($"{nameof(NoteNativePage)}?noteId={id}");
+    /// </summary>
+    private async Task OpenNativeFocusMode()
+    {
+        await NavigationService.NavigateToAsync(nameof(NoteNativePage));
+    }
+
+    public void Dispose()
+    {
+        NoteViewModel.PropertyChanged -= OnViewModelPropertyChanged;
+    }
+}

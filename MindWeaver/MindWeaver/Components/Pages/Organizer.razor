@@ -1,0 +1,495 @@
+@page "/organizer"
+@using MindWeaver.ViewModels
+@using MindWeaver.Models
+@inject FoldersViewModel FoldersViewModel
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject IJSRuntime JS
+@implements IDisposable
+
+<PageTitle>Organizer — MindWeaver</PageTitle>
+
+<MudStack Spacing="3">
+
+    @* ── Header ──────────────────────────────────────────────────────────── *@
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudText Typo="Typo.h5">
+            <MudIcon Icon="@Icons.Material.Filled.ViewKanban" Class="mr-2 mb-1" />
+            Organizer
+        </MudText>
+        <MudStack Row="true" Spacing="2">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.CreateNewFolder"
+                       Disabled="@FoldersViewModel.IsBusy"
+                       OnClick="OpenCreateFolderDialog">
+                New Folder
+            </MudButton>
+            <MudButton Variant="Variant.Outlined"
+                       Color="Color.Default"
+                       StartIcon="@Icons.Material.Filled.Refresh"
+                       Disabled="@FoldersViewModel.IsBusy"
+                       OnClick="RefreshAsync">
+                Refresh
+            </MudButton>
+        </MudStack>
+    </MudStack>
+
+    <MudDivider />
+
+    @if (FoldersViewModel.IsBusy)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+    }
+
+    @* ── Kanban board ─────────────────────────────────────────────────────── *@
+    @if (!FoldersViewModel.IsBusy)
+    {
+        <div class="org-board">
+
+            @* ── Unfiled column ───────────────────────────────────────────── *@
+            <div class="org-column @(_dropZoneId == "" ? "org-column-over" : "")"
+                 data-zone-id="">
+                <div class="org-column-header org-header-unfiled">
+                    <MudIcon Icon="@Icons.Material.Filled.Inbox" Color="Color.Inherit" Size="Size.Small" />
+                    <span class="org-col-title">Unfiled</span>
+                    <span class="org-col-badge">@FoldersViewModel.AllNotes.Count(n => n.FolderId == null)</span>
+                </div>
+                <div class="org-card-list">
+                    @foreach (var note in FoldersViewModel.AllNotes.Where(n => n.FolderId == null).ToList())
+                    {
+                        <div class="org-note-card @(_draggedNoteId == note.Id.ToString() ? "org-dragging" : "")"
+                             data-note-id="@note.Id">
+                            <div class="org-drag-handle"
+                                 @onmousedown="(e) => BeginDragAsync(e, note)"
+                                 title="Drag to move to folder">
+                                ⠿
+                            </div>
+                            <div class="org-note-body">
+                                <div class="org-note-title">
+                                    @(string.IsNullOrWhiteSpace(note.Title) ? "(Untitled)" : note.Title)
+                                </div>
+                                <div class="org-note-meta">
+                                    <span class="org-note-date">@note.UpdatedAt.ToLocalTime().ToString("MMM d")</span>
+                                    <button class="org-open-btn"
+                                            @onclick="() => OpenNote(note.Id)"
+                                            @onclick:stopPropagation="true">↗</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* ── Folder columns ───────────────────────────────────────────── *@
+            @foreach (var folder in FoldersViewModel.Folders)
+            {
+                var fid = folder.Id.ToString();
+                <div class="org-column @(_dropZoneId == fid ? "org-column-over" : "")"
+                     data-zone-id="@fid">
+                    <div class="org-column-header org-header-folder">
+                        <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Inherit" Size="Size.Small" />
+                        <span class="org-col-title">@folder.Name</span>
+                        <span class="org-col-badge">@folder.Notes.Count</span>
+                    </div>
+                    <div class="org-card-list">
+                        @foreach (var note in folder.Notes.ToList())
+                        {
+                            <div class="org-note-card @(_draggedNoteId == note.Id.ToString() ? "org-dragging" : "")"
+                                 data-note-id="@note.Id">
+                                <div class="org-drag-handle"
+                                     @onmousedown="(e) => BeginDragAsync(e, note)"
+                                     title="Drag to move to folder">
+                                    ⠿
+                                </div>
+                                <div class="org-note-body">
+                                    <div class="org-note-title">
+                                        @(string.IsNullOrWhiteSpace(note.Title) ? "(Untitled)" : note.Title)
+                                    </div>
+                                    <div class="org-note-meta">
+                                        <span class="org-note-date">@note.UpdatedAt.ToLocalTime().ToString("MMM d")</span>
+                                        <button class="org-open-btn"
+                                                @onclick="() => OpenNote(note.Id)"
+                                                @onclick:stopPropagation="true">↗</button>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @* ── Empty hint ───────────────────────────────────────────────── *@
+            @if (!FoldersViewModel.Folders.Any())
+            {
+                <MudAlert Severity="Severity.Info" Icon="@Icons.Material.Filled.Lightbulb"
+                          Class="align-self-start mt-2" Style="max-width: 320px;">
+                    Click <strong>New Folder</strong> to create a folder,
+                    then drag notes into it using the ⠿ handle.
+                </MudAlert>
+            }
+
+        </div>
+    }
+
+</MudStack>
+
+@* ── Styles ───────────────────────────────────────────────────────────────── *@
+<style>
+    .org-board {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 14px;
+        overflow-x: auto;
+        align-items: flex-start;
+        padding-bottom: 12px;
+    }
+
+    .org-column {
+        min-width: 210px;
+        width: 210px;
+        flex-shrink: 0;
+        border-radius: 12px;
+        border: 2px solid transparent;
+        background: var(--mud-palette-surface);
+        overflow: hidden;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .org-column-over {
+        border-color: var(--mud-palette-primary) !important;
+        box-shadow: 0 0 0 3px rgba(124,77,255,0.15);
+    }
+
+    .org-column-header {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        padding: 8px 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+    }
+
+    .org-header-unfiled { background: var(--mud-palette-primary);   color: var(--mud-palette-primary-text);   border-radius: 10px 10px 0 0; }
+    .org-header-folder  { background: var(--mud-palette-secondary);  color: var(--mud-palette-secondary-text); border-radius: 10px 10px 0 0; }
+
+    .org-col-title  { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    .org-col-badge  {
+        background: rgba(0,0,0,0.18);
+        border-radius: 20px;
+        padding: 1px 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+
+    .org-card-list {
+        padding: 8px;
+        min-height: 110px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    /* ── Note card — contains drag handle + body side by side ──────────── */
+    .org-note-card {
+        display: flex;
+        align-items: stretch;
+        border-radius: 8px;
+        background: var(--mud-palette-background);
+        box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+        border-left: 3px solid var(--mud-palette-primary);
+        overflow: hidden;
+        transition: opacity 0.18s, transform 0.12s;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    .org-note-card.org-dragging {
+        opacity: 0.28;
+        transform: scale(0.95);
+    }
+
+    /* ── Six-dot drag handle (identical pattern to Home.razor's mw-drag-handle) */
+    .org-drag-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 22px;
+        flex-shrink: 0;
+        cursor: grab;
+        font-size: 1rem;
+        color: var(--mud-palette-text-disabled);
+        background: rgba(0,0,0,0.03);
+        border-right: 1px solid rgba(0,0,0,0.06);
+        transition: background 0.15s;
+    }
+
+    .org-drag-handle:hover  { background: rgba(0,0,0,0.08); color: var(--mud-palette-primary); }
+    .org-drag-handle:active { cursor: grabbing; }
+
+    .org-note-body {
+        flex: 1;
+        padding: 7px 8px;
+        min-width: 0;
+    }
+
+    .org-note-title {
+        font-size: 0.8rem;
+        font-weight: 600;
+        line-height: 1.35;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 3px;
+    }
+
+    .org-note-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .org-note-date { font-size: 0.68rem; opacity: 0.5; }
+
+    .org-open-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.75rem;
+        opacity: 0.45;
+        padding: 1px 3px;
+        border-radius: 3px;
+        transition: opacity 0.12s;
+        pointer-events: auto;
+    }
+    .org-open-btn:hover { opacity: 1; }
+
+    /* ── Ghost element that follows the mouse while dragging ─────────────── */
+    .org-ghost {
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        background: var(--mud-palette-background, #fff);
+        border-left: 4px solid var(--mud-palette-primary, #7c4dff);
+        border-radius: 8px;
+        padding: 9px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.22);
+        transform: rotate(1.5deg) scale(1.04);
+        opacity: 0.93;
+        min-width: 140px;
+        max-width: 200px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+</style>
+
+@code {
+    // ── State ────────────────────────────────────────────────────────────────
+    private string? _draggedNoteId;
+    private string? _dropZoneId;
+    private DotNetObjectReference<Organizer>? _selfRef;
+
+    // ── Same JS engine pattern as Home.razor — scoped as OrgDnD ─────────────
+    private const string OrgDragScript = """
+        window.OrgDnD = (() => {
+            let dotNet = null, dragging = false, draggedId = null;
+            let ghost = null, lastZoneId = null;
+            const THRESHOLD = 6;
+            let startX = 0, startY = 0, pendingId = null, pendingText = null, started = false;
+
+            function init(ref) {
+                dotNet = ref;
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup',   onMouseUp);
+            }
+
+            function destroy() {
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup',   onMouseUp);
+                removeGhost(); reset(); dotNet = null;
+            }
+
+            function beginDrag(noteId, noteTitle, clientX, clientY) {
+                pendingId = noteId; pendingText = noteTitle;
+                startX = clientX; startY = clientY; started = false;
+            }
+
+            function onMouseMove(e) {
+                // Activate only after THRESHOLD pixels of movement (prevents accidental drags)
+                if (pendingId && !started) {
+                    if (Math.hypot(e.clientX - startX, e.clientY - startY) < THRESHOLD) return;
+                    started = true; dragging = true; draggedId = pendingId;
+                    createGhost(pendingText, e.clientX, e.clientY);
+                    dotNet.invokeMethodAsync('OrgDragStarted', draggedId);
+                }
+                if (!dragging || !ghost) return;
+
+                ghost.style.left = (e.clientX + 16) + 'px';
+                ghost.style.top  = (e.clientY + 12) + 'px';
+
+                // elementFromPoint with ghost hidden so it doesn't block the lookup
+                ghost.style.visibility = 'hidden';
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                ghost.style.visibility = 'visible';
+
+                const col = el && el.closest('[data-zone-id]');
+                const zid = col ? col.getAttribute('data-zone-id') : null;
+                if (zid !== lastZoneId) {
+                    lastZoneId = zid;
+                    dotNet.invokeMethodAsync('OrgDragOverZone', zid);
+                }
+            }
+
+            async function onMouseUp(e) {
+                if (!started || !dragging) {
+                    pendingId = null; pendingText = null; started = false; return;
+                }
+                removeGhost();
+                const el = document.elementFromPoint(e.clientX, e.clientY);
+                const col = el && el.closest('[data-zone-id]');
+                if (col) {
+                    await dotNet.invokeMethodAsync('OrgDropped', draggedId, col.getAttribute('data-zone-id') ?? '');
+                } else {
+                    await dotNet.invokeMethodAsync('OrgDragCancelled');
+                }
+                reset();
+            }
+
+            function createGhost(title, x, y) {
+                ghost = document.createElement('div');
+                ghost.className = 'org-ghost';
+                ghost.innerText = '\u283F  ' + title;
+                ghost.style.left = (x + 16) + 'px';
+                ghost.style.top  = (y + 12) + 'px';
+                document.body.appendChild(ghost);
+            }
+
+            function removeGhost() { if (ghost) { ghost.remove(); ghost = null; } }
+            function reset() {
+                dragging = false; draggedId = null; lastZoneId = null;
+                pendingId = null; pendingText = null; started = false;
+            }
+
+            return { init, destroy, beginDrag };
+        })();
+        """;
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+        => await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("eval", OrgDragScript);
+            _selfRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("OrgDnD.init", _selfRef);
+        }
+    }
+
+    public void Dispose()
+    {
+        _ = JS.InvokeVoidAsync("OrgDnD.destroy");
+        _selfRef?.Dispose();
+    }
+
+    private async Task RefreshAsync()
+        => await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+
+    // ── Navigation ────────────────────────────────────────────────────────────
+    private void OpenNote(Guid noteId) => Nav.NavigateTo($"/editor/{noteId}");
+
+    // ── Folder creation — uses IDialogService (no inline MudDialog) ──────────
+    private async Task OpenCreateFolderDialog()
+    {
+        var dialog = await DialogService.ShowAsync<MindWeaver.Components.Dialogs.CreateFolderDialog>("New Folder");
+        var result = await dialog.Result;
+
+        if (result is { Canceled: false, Data: string name } && !string.IsNullOrWhiteSpace(name))
+        {
+            await FoldersViewModel.AddFolderCommand.ExecuteAsync(name);
+            Snackbar.Add($"Folder \"{name}\" created.", Severity.Success);
+        }
+    }
+
+    // ── JS drag entry point — called from @onmousedown on the handle div ─────
+    private async Task BeginDragAsync(MouseEventArgs e, Note note)
+    {
+        if (e.Button != 0) return;  // left-click only
+        var title = string.IsNullOrWhiteSpace(note.Title) ? "(Untitled)" : note.Title;
+        await JS.InvokeVoidAsync("OrgDnD.beginDrag", note.Id.ToString(), title, e.ClientX, e.ClientY);
+    }
+
+    // ── JSInvokable callbacks (mirror of Home.razor's OnDragStarted etc.) ────
+    [JSInvokable]
+    public void OrgDragStarted(string noteId)
+    {
+        _draggedNoteId = noteId;
+        _dropZoneId    = null;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OrgDragOverZone(string? zoneId)
+    {
+        if (_dropZoneId == zoneId) return;
+        _dropZoneId = zoneId;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public async Task OrgDropped(string noteId, string zoneId)
+    {
+        _dropZoneId = null;
+
+        var note = FoldersViewModel.AllNotes.FirstOrDefault(n => n.Id.ToString() == noteId);
+        if (note is null) { _draggedNoteId = null; await InvokeAsync(StateHasChanged); return; }
+
+        var newFolderId = string.IsNullOrEmpty(zoneId) ? (Guid?)null : Guid.Parse(zoneId);
+
+        // No-op: dropped into the same zone it came from
+        if (note.FolderId == newFolderId)
+        {
+            _draggedNoteId = null;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            var dest = newFolderId is null ? "Unfiled"
+                : FoldersViewModel.Folders.FirstOrDefault(f => f.Id == newFolderId)?.Name ?? "folder";
+
+            await FoldersViewModel.MoveNoteAsync(note, newFolderId);
+
+            // Reload so folder.Notes counts and AllNotes are updated
+            await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+
+            Snackbar.Add($"Moved \"{(string.IsNullOrWhiteSpace(note.Title) ? "note" : note.Title)}\" → {dest}", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Move failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _draggedNoteId = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    [JSInvokable]
+    public void OrgDragCancelled()
+    {
+        _draggedNoteId = null;
+        _dropZoneId    = null;
+        InvokeAsync(StateHasChanged);
+    }
+}

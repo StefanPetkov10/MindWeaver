@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!--
+    AppShell.xaml
+    =============
+    A minimal Shell that makes the existing Blazor WebView (MainPage) the
+    root of the navigation hierarchy, then exposes named routes for all
+    native XAML pages.
+
+    Why Shell and not NavigationPage?
+      Shell gives us Routing.RegisterRoute support and GoToAsync semantics.
+      NavigationPage also works but requires manual push/pop and doesn't
+      support the route-string API used by MauiNavigationService.
+
+    The ShellContent's ContentTemplate uses DataTemplate so that MainPage
+    is only instantiated on first navigation — no eager allocation.
+-->
+<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:local="clr-namespace:MindWeaver"
+       x:Class="MindWeaver.AppShell"
+       Shell.NavBarIsVisible="False">
+
+    <!--
+        Root item — the Blazor WebView host page.
+        FlyoutDisplayOptions.AsMultipleItems is the default; hiding the flyout
+        keeps the app looking identical to its pre-Shell state.
+    -->
+    <ShellContent Title="MindWeaver"
+                  ContentTemplate="{DataTemplate local:MainPage}"
+                  Route="main" />
+
+</Shell>

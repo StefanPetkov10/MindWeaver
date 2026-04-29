@@ -1,0 +1,190 @@
+@using System.Timers
+@implements IDisposable
+
+<div class="pomodoro-widget">
+
+    <div class="pomodoro-display">
+        <span class="pomodoro-time">@FormattedTime</span>
+        <span class="pomodoro-label">@(IsRunning ? "Focus — stay on task!" : (SecondsRemaining == TotalSeconds ? "Ready to focus?" : "Paused"))</span>
+    </div>
+
+    <div class="pomodoro-progress-track">
+        <div class="pomodoro-progress-fill" style="width: @ProgressPercent%;"></div>
+    </div>
+
+    <div class="pomodoro-controls">
+        <button class="pomodoro-btn @(IsRunning ? "btn-stop" : "btn-start")"
+                @onclick="ToggleTimer">
+            @(IsRunning ? "⏸ Pause" : (SecondsRemaining == TotalSeconds ? "▶ Start" : "▶ Resume"))
+        </button>
+        <button class="pomodoro-btn btn-reset" @onclick="ResetTimer" disabled="@IsRunning">
+            ↺ Reset
+        </button>
+    </div>
+
+</div>
+
+<style>
+    .pomodoro-widget {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+        padding: 8px 0;
+        font-family: inherit;
+    }
+
+    .pomodoro-display {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .pomodoro-time {
+        font-size: 3.5rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.05em;
+        color: var(--mud-palette-text-primary, #e0e0e0);
+        line-height: 1;
+    }
+
+    .pomodoro-label {
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--mud-palette-text-secondary, #9e9e9e);
+    }
+
+    .pomodoro-progress-track {
+        width: 100%;
+        max-width: 340px;
+        height: 6px;
+        background: var(--mud-palette-action-disabled-background, rgba(255,255,255,0.12));
+        border-radius: 3px;
+        overflow: hidden;
+    }
+
+    .pomodoro-progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #7c4dff, #e040fb);
+        border-radius: 3px;
+        transition: width 0.9s linear;
+    }
+
+    .pomodoro-controls {
+        display: flex;
+        gap: 12px;
+    }
+
+    .pomodoro-btn {
+        padding: 10px 28px;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.15s, transform 0.1s;
+    }
+
+    .pomodoro-btn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
+    .pomodoro-btn:active:not(:disabled) { transform: translateY(0); }
+    .pomodoro-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .btn-start  { background: linear-gradient(135deg, #7c4dff, #e040fb); color: #fff; }
+    .btn-stop   { background: linear-gradient(135deg, #ff5252, #ff867c); color: #fff; }
+    .btn-reset  { background: var(--mud-palette-action-default-hover, rgba(255,255,255,0.08));
+                  color: var(--mud-palette-text-primary, #e0e0e0); }
+</style>
+
+@code {
+
+    // ── Constants ────────────────────────────────────────────────────────────
+    private const int TotalSeconds = 25 * 60; // 25-minute Pomodoro session
+
+    // ── State ────────────────────────────────────────────────────────────────
+    private int SecondsRemaining = TotalSeconds;
+    private bool IsRunning = false;
+    private Timer? _timer;
+
+    // ── Derived ──────────────────────────────────────────────────────────────
+    private string FormattedTime
+    {
+        get
+        {
+            int minutes = SecondsRemaining / 60;
+            int seconds = SecondsRemaining % 60;
+            return $"{minutes:D2}:{seconds:D2}";
+        }
+    }
+
+    /// <summary>Percentage of session elapsed (0–100), drives the progress bar.</summary>
+    private double ProgressPercent =>
+        Math.Round((1.0 - (double)SecondsRemaining / TotalSeconds) * 100, 2);
+
+    // ── Timer Logic ──────────────────────────────────────────────────────────
+    private void ToggleTimer()
+    {
+        if (IsRunning)
+        {
+            PauseTimer();
+        }
+        else
+        {
+            StartTimer();
+        }
+    }
+
+    private void StartTimer()
+    {
+        if (SecondsRemaining <= 0) return;
+
+        IsRunning = true;
+
+        // System.Timers.Timer fires on a thread-pool thread — we must marshal
+        // state changes back onto the Blazor synchronisation context.
+        _timer = new Timer(1_000); // 1-second interval
+        _timer.Elapsed += OnTick;
+        _timer.AutoReset = true;
+        _timer.Start();
+    }
+
+    private void PauseTimer()
+    {
+        IsRunning = false;
+        _timer?.Stop();
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    private void ResetTimer()
+    {
+        PauseTimer();
+        SecondsRemaining = TotalSeconds;
+        StateHasChanged();
+    }
+
+    private void OnTick(object? sender, ElapsedEventArgs e)
+    {
+        if (SecondsRemaining > 0)
+        {
+            SecondsRemaining--;
+        }
+        else
+        {
+            // Session complete — stop automatically.
+            PauseTimer();
+        }
+
+        // Marshal the UI update to the Blazor thread.
+        InvokeAsync(StateHasChanged);
+    }
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+    public void Dispose()
+    {
+        _timer?.Stop();
+        _timer?.Dispose();
+    }
+}

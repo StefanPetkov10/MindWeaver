@@ -1,0 +1,564 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>MindWeaver</name>
+    </assembly>
+    <members>
+        <member name="M:MindWeaver.App.#ctor(MindWeaver.AppShell)">
+             <summary>
+             <see cref="T:MindWeaver.AppShell"/> is injected by the MAUI DI container
+             (registered as Singleton in <c>MauiProgram.cs</c>).
+            
+             Accepting it here rather than writing <c>new AppShell()</c>
+             ensures that every service AppShell (or its pages) depend on
+             is also resolved through DI — including <see cref="T:MindWeaver.Views.NoteNativePage"/>
+             and its <see cref="T:MindWeaver.ViewModels.NoteViewModel"/>.
+             </summary>
+        </member>
+        <member name="T:MindWeaver.AppShell">
+             <summary>
+             Application Shell — the MAUI navigation root that replaces the bare
+             <see cref="T:MindWeaver.MainPage"/> window root used before native routing was needed.
+            
+             Responsibilities:
+               1. Host the existing Blazor WebView (<see cref="T:MindWeaver.MainPage"/>) as the
+                  Shell's default content — no visible UI change for the end-user.
+               2. Register all native XAML page routes so that
+                  <c>Shell.Current.GoToAsync(nameof(NoteNativePage))</c> works without
+                  throwing a <see cref="T:System.ArgumentException"/> about unknown routes.
+            
+             Route registration must happen BEFORE any navigation call, so the
+             constructor is the correct place (runs once at app startup, before any
+             page is shown).
+             </summary>
+        </member>
+        <member name="T:MindWeaver.Contracts.INavigationService">
+             <summary>
+             Abstracts navigation so ViewModels remain completely decoupled from
+             both Blazor's NavigationManager and MAUI's Shell routing engine.
+            
+             Two concrete implementations exist:
+               • <see cref="T:MindWeaver.Services.BlazorNavigationService"/> — used by
+                 Blazor components inside the WebView.
+               • <see cref="T:MindWeaver.Services.MauiNavigationService"/> — used by
+                 native XAML pages hosted by MAUI Shell.
+            
+             The active implementation is resolved at runtime via the DI container,
+             meaning the same ViewModel works unchanged in both UI environments.
+             </summary>
+        </member>
+        <member name="M:MindWeaver.Contracts.INavigationService.NavigateToAsync(System.String)">
+            <summary>
+            Navigates to the given <paramref name="route"/>.
+            </summary>
+            <param name="route">
+            A Blazor relative path (e.g. <c>"/notes/edit"</c>) or a MAUI Shell
+            route (e.g. <c>"//NoteNativePage"</c>).
+            </param>
+        </member>
+        <member name="M:MindWeaver.Contracts.INavigationService.GoBackAsync">
+            <summary>
+            Navigates back one step in the navigation stack.
+            </summary>
+        </member>
+        <member name="T:MindWeaver.Contracts.IWidgetPlugin">
+            <summary>
+            Contract that every external plugin assembly must implement.
+            The host discovers all types satisfying this interface at runtime
+            and renders them as first-class dashboard widgets.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Contracts.IWidgetPlugin.Name">
+            <summary>
+            Human-readable display name shown in the plugin card header.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.Contracts.IWidgetPlugin.GetComponentType">
+            <summary>
+            Returns the concrete <see cref="T:System.Type"/> of the Blazor component
+            that the host should render via <c>&lt;DynamicComponent&gt;</c>.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Models.DashboardWidget.WidgetType">
+            <summary>
+            Discriminator string identifying the widget component to render.
+            Examples: "RecentNotes", "Pomodoro", "QuickCapture", "Statistics".
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Models.DashboardWidget.PositionIndex">
+            <summary>
+            Zero-based display order used for drag-and-drop layout persistence.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Models.DashboardWidget.IsVisible">
+            <summary>
+            Controls whether the widget is rendered in the dashboard.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Models.Folder.OrderIndex">
+            <summary>
+            Zero-based position index used for drag-and-drop ordering in the sidebar.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Models.Folder.Icon">
+            <summary>
+            Material Icon name (e.g. "folder", "star", "work") rendered by MudBlazor.
+            </summary>
+        </member>
+        <member name="T:MindWeaver.Services.BlazorNavigationService">
+             <summary>
+             <see cref="T:MindWeaver.Contracts.INavigationService"/> implementation for Blazor components
+             running inside the WebView. Wraps ASP.NET Core's <see cref="T:Microsoft.AspNetCore.Components.NavigationManager"/>.
+            
+             Lifetime: <b>Scoped</b> — <see cref="T:Microsoft.AspNetCore.Components.NavigationManager"/> is itself Scoped
+             in the Blazor DI container, so this service must match that lifetime.
+             </summary>
+        </member>
+        <member name="M:MindWeaver.Services.BlazorNavigationService.NavigateToAsync(System.String)">
+            <inheritdoc/>
+        </member>
+        <member name="M:MindWeaver.Services.BlazorNavigationService.GoBackAsync">
+            <inheritdoc/>
+        </member>
+        <member name="T:MindWeaver.Services.MauiNavigationService">
+             <summary>
+             <see cref="T:MindWeaver.Contracts.INavigationService"/> implementation for native MAUI XAML pages
+             routed through <see cref="T:Microsoft.Maui.Controls.Shell"/>. Wraps <c>Shell.Current.GoToAsync</c>.
+            
+             Lifetime: <b>Singleton</b> — Shell is a singleton, and this service holds
+             no mutable state, so a single instance is safe for the app's lifetime.
+             </summary>
+        </member>
+        <member name="M:MindWeaver.Services.MauiNavigationService.NavigateToAsync(System.String)">
+            <inheritdoc/>
+            <remarks>
+            <paramref name="route"/> must be a registered Shell route, e.g.
+            <c>"//NoteNativePage"</c> for an absolute route or
+            <c>"NoteNativePage"</c> for a relative push.
+            </remarks>
+        </member>
+        <member name="M:MindWeaver.Services.MauiNavigationService.GoBackAsync">
+            <inheritdoc/>
+        </member>
+        <member name="T:MindWeaver.Services.PluginLoaderService">
+            <summary>
+            Scans the application's dedicated Plugins directory for external .NET assemblies,
+            discovers all concrete <see cref="T:MindWeaver.Contracts.IWidgetPlugin"/> implementations, and returns
+            instantiated plugin objects ready for the host to render.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.Services.PluginLoaderService.LoadPlugins">
+            <summary>
+            Loads all valid <see cref="T:MindWeaver.Contracts.IWidgetPlugin"/> instances found in external
+            .dll files placed in the Plugins directory.
+            </summary>
+            <returns>
+            A lazily-evaluated sequence of activated plugin instances.
+            Invalid or non-.NET DLLs are silently skipped.
+            </returns>
+        </member>
+        <member name="T:MindWeaver.ViewModels.BaseViewModel">
+            <summary>
+            Root base class for all ViewModels in MindWeaver.
+            Provides shared busy-state tracking via the CommunityToolkit.Mvvm source generator.
+            </summary>
+            <inheritdoc/>
+        </member>
+        <member name="F:MindWeaver.ViewModels.BaseViewModel._isBusy">
+            <summary>
+            True while an async operation is in progress.
+            Exposes the generated <c>IsBusy</c> property for data binding and UI gating.
+            </summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.BaseViewModel._title">
+            <summary>
+            Convenience title that concrete ViewModels can override to label pages/dialogs.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.BaseViewModel.IsBusy">
+            <inheritdoc cref="F:MindWeaver.ViewModels.BaseViewModel._isBusy"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.BaseViewModel.Title">
+            <inheritdoc cref="F:MindWeaver.ViewModels.BaseViewModel._title"/>
+        </member>
+        <member name="T:MindWeaver.ViewModels.DashboardViewModel">
+            <inheritdoc/>
+        </member>
+        <member name="M:MindWeaver.ViewModels.DashboardViewModel.CreateDefaultFolderAsync">
+            <summary>
+            Creates a "General" inbox folder on first run if no folders exist yet.
+            Idempotent — safe to call on every startup.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.DashboardViewModel.Widgets">
+            <inheritdoc cref="F:MindWeaver.ViewModels.DashboardViewModel._widgets"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.DashboardViewModel.NoteCount">
+            <inheritdoc cref="F:MindWeaver.ViewModels.DashboardViewModel._noteCount"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.DashboardViewModel.FolderCount">
+            <inheritdoc cref="F:MindWeaver.ViewModels.DashboardViewModel._folderCount"/>
+        </member>
+        <member name="T:MindWeaver.ViewModels.FoldersViewModel">
+            <summary>
+            Manages the sidebar folder list. Registered as a Singleton so the loaded
+            collection is shared across all Blazor components without redundant DB round-trips.
+            </summary>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="F:MindWeaver.ViewModels.FoldersViewModel._folders">
+            <summary>
+            Flat, ordered list of all folders including their nested notes.
+            Populated by <see cref="P:MindWeaver.ViewModels.FoldersViewModel.LoadFoldersCommand"/>.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.FoldersViewModel.AllNotes">
+            <summary>
+            Flat list of every note across all folders (plus unfiled notes).
+            Required by <c>MudDropContainer</c> which needs a single source collection
+            to render and match items against drop zones.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.FoldersViewModel.LoadFoldersAsync">
+            <summary>
+            Loads all folders from SQLite, eagerly including child Notes,
+            ordered by <see cref="P:MindWeaver.Models.Folder.OrderIndex"/> for drag-and-drop consistency.
+            Guarded by IsBusy to prevent concurrent executions.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.FoldersViewModel.AddFolderAsync(System.String)">
+            <summary>
+            Persists a new folder and refreshes the list.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.FoldersViewModel.SaveOrderAsync(System.Collections.Generic.IList{MindWeaver.Models.Folder})">
+            <summary>
+            Persists reordered <see cref="P:MindWeaver.Models.Folder.OrderIndex"/> values after a drag-and-drop
+            operation. Call this with the updated, reordered list from the UI.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.FoldersViewModel.MoveNoteAsync(MindWeaver.Models.Note,System.Nullable{System.Guid})">
+             <summary>
+             Moves a note to a different folder (or to Unfiled when
+             <paramref name="newFolderId"/> is <see langword="null"/>).
+            
+             Uses EF Core's <c>ExecuteUpdateAsync</c> (bulk-update API) so we never
+             need to attach the detached entity that came from an <c>AsNoTracking</c>
+             query — avoids the tracking-conflict exception that would occur inside
+             a Singleton-lifetime DbContext.
+             </summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.FoldersViewModel.Folders">
+            <inheritdoc cref="F:MindWeaver.ViewModels.FoldersViewModel._folders"/>
+        </member>
+        <member name="F:MindWeaver.ViewModels.FoldersViewModel.loadFoldersCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.FoldersViewModel.LoadFoldersCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.FoldersViewModel.LoadFoldersCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.FoldersViewModel.LoadFoldersAsync"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.FoldersViewModel.addFolderCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.FoldersViewModel.AddFolderCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.FoldersViewModel.AddFolderCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:MindWeaver.ViewModels.FoldersViewModel.AddFolderAsync(System.String)"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.FoldersViewModel.saveOrderCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.FoldersViewModel.SaveOrderCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.FoldersViewModel.SaveOrderCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:MindWeaver.ViewModels.FoldersViewModel.SaveOrderAsync(System.Collections.Generic.IList{MindWeaver.Models.Folder})"/>.</summary>
+        </member>
+        <member name="T:MindWeaver.ViewModels.NoteViewModel">
+            <summary>
+            Drives the note editor surface. Registered as Transient so each
+            editor page receives an isolated, fresh instance with no stale state.
+            </summary>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+            <inheritdoc/>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.#ctor(MindWeaver.Data.AppDbContext,MindWeaver.Contracts.INavigationService)">
+            <summary>
+            Accepts both the EF Core context for persistence and an
+            <see cref="T:MindWeaver.Contracts.INavigationService"/> abstraction so that navigation
+            calls work identically whether the ViewModel is bound to a Blazor
+            component (resolved with <see cref="T:MindWeaver.Services.BlazorNavigationService"/>)
+            or a native MAUI XAML page (resolved with
+            <see cref="T:MindWeaver.Services.MauiNavigationService"/>).
+            </summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel._currentNoteId">
+            <summary>
+            Null when creating a new note; set to the DB-assigned Guid after first save.
+            </summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel._selectedFolderId">
+            <summary>
+            The folder this note belongs to. Null = unfiled / Inbox.
+            </summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel._statusMessage">
+            <summary>
+            Human-readable feedback message set after a save attempt.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.GoBackAsync">
+            <summary>
+            Navigates back to the previous screen. Works from both Blazor pages
+            and native XAML pages because it delegates to <see cref="T:MindWeaver.Contracts.INavigationService"/>.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.Undo">
+            <summary>
+            Pops the most recent Content snapshot off the undo stack, pushes the
+            current Content onto the redo stack, then restores the snapshot.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.Redo">
+            <summary>
+            Pops the most recently undone snapshot off the redo stack, pushes the
+            current Content onto the undo stack, then restores the snapshot.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.LoadNoteAsync(System.Guid)">
+            <summary>
+            Loads an existing note by id into the editor surface.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.SaveNoteAsync">
+             <summary>
+             Persists the current editor state.
+            
+             Strategy:
+             - <c>CurrentNoteId == null</c> → INSERT a new <see cref="T:MindWeaver.Models.Note"/>, capture its id.
+             - <c>CurrentNoteId != null</c>  → UPDATE the tracked entity's fields.
+             - In both branches: INSERT a <see cref="T:MindWeaver.Models.NoteRevision"/> snapshot so full history
+               is preserved regardless of path taken.
+             - Single <c>SaveChangesAsync</c> call writes both rows in one transaction.
+             </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.LoadRevisionsAsync">
+            <summary>
+            Loads all revision history for the current note, ordered newest first.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.Reset">
+            <summary>
+            Resets the ViewModel to a blank new-note state.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.CurrentNoteId">
+            <inheritdoc cref="F:MindWeaver.ViewModels.NoteViewModel._currentNoteId"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.NoteTitle">
+            <inheritdoc cref="F:MindWeaver.ViewModels.NoteViewModel._noteTitle"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.Content">
+            <inheritdoc cref="F:MindWeaver.ViewModels.NoteViewModel._content"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.SelectedFolderId">
+            <inheritdoc cref="F:MindWeaver.ViewModels.NoteViewModel._selectedFolderId"/>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.StatusMessage">
+            <inheritdoc cref="F:MindWeaver.ViewModels.NoteViewModel._statusMessage"/>
+        </member>
+        <member name="M:MindWeaver.ViewModels.NoteViewModel.OnContentChanging(System.String)">
+            <summary>
+            CommunityToolkit partial method hook — fires BEFORE the backing field
+            is overwritten, so <c>Content</c> still holds the value being replaced.
+            This is the correct place to snapshot for undo.
+            </summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.goBackCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.GoBackCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.GoBackCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.GoBackAsync"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.undoCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.UndoCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.UndoCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.Undo"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.redoCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.RedoCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.RedoCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.Redo"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.loadNoteCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.LoadNoteCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.LoadNoteCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand`1"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.LoadNoteAsync(System.Guid)"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.saveNoteCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.SaveNoteCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.SaveNoteCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.SaveNoteAsync"/>.</summary>
+        </member>
+        <member name="F:MindWeaver.ViewModels.NoteViewModel.loadRevisionsCommand">
+            <summary>The backing field for <see cref="P:MindWeaver.ViewModels.NoteViewModel.LoadRevisionsCommand"/>.</summary>
+        </member>
+        <member name="P:MindWeaver.ViewModels.NoteViewModel.LoadRevisionsCommand">
+            <summary>Gets an <see cref="T:CommunityToolkit.Mvvm.Input.IAsyncRelayCommand"/> instance wrapping <see cref="M:MindWeaver.ViewModels.NoteViewModel.LoadRevisionsAsync"/>.</summary>
+        </member>
+        <member name="T:MindWeaver.Views.NoteNativePage">
+             <summary>
+             Code-behind for the native MAUI XAML "Focus Mode / Quick Capture" page.
+            
+             Architecture note — why this is almost empty:
+               All state and logic live in <see cref="T:MindWeaver.ViewModels.NoteViewModel"/>. The code-behind
+               has exactly one responsibility: receive the ViewModel from the DI container
+               and assign it as <see cref="P:Microsoft.Maui.Controls.BindableObject.BindingContext"/>.
+            
+               This is the canonical MVVM pattern for MAUI:
+                 • ViewModel ← injected by the DI container (no `new` keyword here).
+                 • View       ← binds to ViewModel properties declaratively in XAML.
+                 • No business logic, no navigation logic, no data access in this file.
+             </summary>
+        </member>
+        <member name="M:MindWeaver.Views.NoteNativePage.#ctor(MindWeaver.ViewModels.NoteViewModel)">
+             <summary>
+             Constructs the page with a <see cref="T:MindWeaver.ViewModels.NoteViewModel"/> provided by
+             the MAUI dependency injection container (registered as Transient in
+             <c>MauiProgram.cs</c>).
+            
+             Each navigation to this page creates a fresh ViewModel instance,
+             guaranteeing no stale state from a previous edit session.
+             </summary>
+             <param name="viewModel">
+             The note editor ViewModel. Injected — never instantiated manually.
+             </param>
+        </member>
+        <member name="M:MindWeaver.Views.NoteNativePage.OnAppearing">
+            <summary>
+            Focuses the Title Entry when the page first appears, so the user can
+            start typing immediately without an extra tap.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.Views.NoteNativePage.OnDisappearing">
+            <summary>
+            Clears soft-keyboard focus when leaving the page to avoid ghost-focus
+            issues on return navigation on some platforms.
+            </summary>
+        </member>
+        <member name="T:MindWeaver.Resource">
+            <summary>
+            Android Resource Designer class.
+            Exposes the Android Resource designer assembly into the project Namespace.
+            </summary>
+        </member>
+        <member name="P:MindWeaver.Components.Pages.Editor.NoteId">
+            <summary>
+            Optional route parameter — set when navigating from the Organizer
+            via /editor/{guid}. Null when creating a brand-new note via /editor.
+            </summary>
+        </member>
+        <member name="M:MindWeaver.Components.Pages.Editor.OpenNativeFocusMode">
+             <summary>
+             Hands off to the native MAUI Shell layer, pushing
+             <see cref="T:MindWeaver.Views.NoteNativePage"/> onto the navigation stack.
+            
+             Because <see cref="T:MindWeaver.Contracts.INavigationService"/> is registered as a Singleton
+             (<see cref="T:MindWeaver.Services.MauiNavigationService"/>), Blazor's
+             scoped DI container falls back to the root MAUI container and resolves
+             the same instance — no extra wiring needed.
+            
+             The ViewModel state (NoteTitle, Content, etc.) is NOT automatically
+             transferred; NoteNativePage will receive a fresh Transient NoteViewModel.
+             If you need to carry state across, persist first with SaveNoteAsync and
+             pass the NoteId as a Shell query-parameter:
+               await NavigationService.NavigateToAsync($"{nameof(NoteNativePage)}?noteId={id}");
+             </summary>
+        </member>
+        <member name="T:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs">
+            <summary>
+            A helper type providing cached, reusable <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instances
+            for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
+            </summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.IsBusy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "IsBusy" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Title">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Title" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Widgets">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Widgets" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.NoteCount">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "NoteCount" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.FolderCount">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "FolderCount" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Folders">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Folders" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.CurrentNoteId">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "CurrentNoteId" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.NoteTitle">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "NoteTitle" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.Content">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "Content" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.SelectedFolderId">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "SelectedFolderId" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangingArgs.StatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangingEventArgs"/> instance for all "StatusMessage" generated properties.</summary>
+        </member>
+        <member name="T:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs">
+            <summary>
+            A helper type providing cached, reusable <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instances
+            for all properties generated with <see cref="T:CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute"/>.
+            </summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.IsBusy">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "IsBusy" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Title">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Title" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Widgets">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Widgets" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.NoteCount">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "NoteCount" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.FolderCount">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "FolderCount" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Folders">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Folders" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.CurrentNoteId">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "CurrentNoteId" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.NoteTitle">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "NoteTitle" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.Content">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "Content" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.SelectedFolderId">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "SelectedFolderId" generated properties.</summary>
+        </member>
+        <member name="F:CommunityToolkit.Mvvm.ComponentModel.__Internals.__KnownINotifyPropertyChangedArgs.StatusMessage">
+            <summary>The cached <see cref="T:System.ComponentModel.PropertyChangedEventArgs"/> instance for all "StatusMessage" generated properties.</summary>
+        </member>
+    </members>
+</doc>

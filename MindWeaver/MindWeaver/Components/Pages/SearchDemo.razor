@@ -1,0 +1,105 @@
+@page "/search-demo"
+@using MindWeaver.Data
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+
+<PageTitle>Dynamic Search Demo – MindWeaver</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-6">
+
+    <MudText Typo="Typo.h4" Class="mb-1">Dynamic Search Demo</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        Both filter forms below are generated 100% automatically from the
+        [Searchable] attributes on the model class. No hand-written inputs.
+    </MudText>
+
+    <MudDivider Class="mb-6" />
+
+    @* ── Note search ──────────────────────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="mb-2">Notes</MudText>
+    <DynamicFilterForm TItem="Note" OnSearch="SearchNotes" />
+
+    @if (_filteredNotes is not null)
+    {
+        <MudTable Items="_filteredNotes" Dense="true" Hover="true" Striped="true" Class="mb-8">
+            <HeaderContent>
+                <MudTh>Title</MudTh>
+                <MudTh>Created</MudTh>
+                <MudTh>Folder</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Title</MudTd>
+                <MudTd>@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</MudTd>
+                <MudTd>@(context.Folder?.Name ?? "—")</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Color="Color.Secondary">No notes match the current filter.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    }
+
+    <MudDivider Class="mb-6" />
+
+    @* ── Folder search ────────────────────────────────────────────────────── *@
+    <MudText Typo="Typo.h6" Class="mb-2">Folders</MudText>
+    <DynamicFilterForm TItem="Folder" OnSearch="SearchFolders" />
+
+    @if (_filteredFolders is not null)
+    {
+        <MudTable Items="_filteredFolders" Dense="true" Hover="true" Striped="true">
+            <HeaderContent>
+                <MudTh>Name</MudTh>
+                <MudTh>Notes</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd>@context.Name</MudTd>
+                <MudTd>@context.Notes.Count</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Color="Color.Secondary">No folders match the current filter.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    }
+
+</MudContainer>
+
+@code {
+
+    // ── Result sets ───────────────────────────────────────────────────────────
+
+    private List<Note>?   _filteredNotes   = null;
+    private List<Folder>? _filteredFolders = null;
+
+    // ── Callbacks wired to <DynamicFilterForm> ────────────────────────────────
+
+    /// <summary>
+    /// Called by the Note filter form. Uses ApplyDynamicFilters to translate
+    /// the UI dictionary into an EF Core .Where() clause via expression trees.
+    /// </summary>
+    private async Task SearchNotes(Dictionary<string, object?> filters)
+    {
+        // Start from the base DbSet, eager-load Folder for display
+        IQueryable<Note> query = Db.Notes.Include(n => n.Folder);
+
+        // Apply every non-empty filter from the UI in one compiled expression
+        query = query.ApplyDynamicFilters(filters);
+
+        _filteredNotes = await query
+            .OrderByDescending(n => n.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Called by the Folder filter form.
+    /// </summary>
+    private async Task SearchFolders(Dictionary<string, object?> filters)
+    {
+        IQueryable<Folder> query = Db.Folders.Include(f => f.Notes);
+
+        query = query.ApplyDynamicFilters(filters);
+
+        _filteredFolders = await query
+            .OrderBy(f => f.Name)
+            .ToListAsync();
+    }
+}

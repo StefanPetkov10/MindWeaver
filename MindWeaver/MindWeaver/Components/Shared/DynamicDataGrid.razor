@@ -1,0 +1,132 @@
+@using System.Reflection
+@typeparam TItem where TItem : class
+
+@* ── DynamicDataGrid<TItem> ───────────────────────────────────────────────────
+   A fully generic, reflection-driven data grid.
+
+   Requirements satisfied:
+     ✅ Accepts any list of objects  (Items)
+     ✅ Accepts a dynamic column list (VisibleColumns)
+     ✅ Re-renders when VisibleColumns changes (set from parent)
+     ✅ Returns the FULL object on row click (OnItemSelected)
+     ✅ Supports clearing and replacing Items at any time
+*@
+
+<MudTable T="TItem"
+          Items="Items"
+          Hover="true"
+          Striped="true"
+          Dense="true"
+          Bordered="false"
+          Loading="@(Items is null)"
+          LoadingProgressColor="Color.Primary"
+          OnRowClick="RowClicked"
+          RowClass="cursor-pointer"
+          Elevation="2">
+
+    <NoRecordsContent>
+        <MudText Class="pa-4" Color="Color.Secondary">
+            <MudIcon Icon="@Icons.Material.Filled.Inbox" Class="mr-1" Style="vertical-align:middle" />
+            No records to display. Load data using the buttons above.
+        </MudText>
+    </NoRecordsContent>
+
+    <HeaderContent>
+        @foreach (var col in VisibleColumns)
+        {
+            <MudTh>
+                <MudTableSortLabel T="TItem" SortBy="@(BuildSortFunc(col))">
+                    @col
+                </MudTableSortLabel>
+            </MudTh>
+        }
+    </HeaderContent>
+
+    <RowTemplate>
+        @foreach (var col in VisibleColumns)
+        {
+            <MudTd DataLabel="@col">
+                @GetValue(context, col)
+            </MudTd>
+        }
+    </RowTemplate>
+
+    <PagerContent>
+        <MudTablePager PageSizeOptions="new int[] { 5, 10, 25, 50 }" />
+    </PagerContent>
+
+</MudTable>
+
+@code {
+
+    // ── Parameters ────────────────────────────────────────────────────────────
+
+    /// <summary>The data source. Can be replaced or cleared at any time.</summary>
+    [Parameter, EditorRequired]
+    public IEnumerable<TItem> Items { get; set; } = Enumerable.Empty<TItem>();
+
+    /// <summary>
+    /// Names of the properties to show as columns.
+    /// Changing this list from the parent triggers an automatic re-render,
+    /// fulfilling the "dynamic column swap" requirement.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public List<string> VisibleColumns { get; set; } = new();
+
+    /// <summary>
+    /// Fired when the user clicks a row. Receives the <b>complete</b> TItem
+    /// object — not just the visible properties.
+    /// </summary>
+    [Parameter]
+    public EventCallback<TItem> OnItemSelected { get; set; }
+
+    // ── Reflection helpers ────────────────────────────────────────────────────
+
+    // Cache resolved PropertyInfo objects so reflection only runs once per column.
+    private readonly Dictionary<string, System.Reflection.PropertyInfo?> _propCache = new();
+
+    private System.Reflection.PropertyInfo? GetProperty(string columnName)
+    {
+        if (!_propCache.TryGetValue(columnName, out var pi))
+        {
+            pi = typeof(TItem).GetProperty(
+                columnName,
+                System.Reflection.BindingFlags.Public |
+                System.Reflection.BindingFlags.Instance |
+                System.Reflection.BindingFlags.IgnoreCase);
+            _propCache[columnName] = pi;
+        }
+        return pi;
+    }
+
+    /// <summary>Safely reads a property value and formats it for display.</summary>
+    private string GetValue(TItem item, string columnName)
+    {
+        var value = GetProperty(columnName)?.GetValue(item);
+        return value switch
+        {
+            null            => "—",
+            DateTime dt     => dt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+            _               => value.ToString() ?? "—"
+        };
+    }
+
+    /// <summary>
+    /// Builds a sort function for <MudTableSortLabel> that also uses the
+    /// cached property lookup so sorting is reflection-based but inexpensive.
+    /// </summary>
+    private Func<TItem, object> BuildSortFunc(string columnName)
+        => item => GetProperty(columnName)?.GetValue(item) ?? string.Empty;
+
+    // ── Row click ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Invokes OnItemSelected with the FULL object (args.Item), not just
+    /// the columns that happen to be visible.
+    /// </summary>
+    private async Task RowClicked(TableRowClickEventArgs<TItem> args)
+    {
+        if (args.Item is not null)
+            await OnItemSelected.InvokeAsync(args.Item);
+    }
+}

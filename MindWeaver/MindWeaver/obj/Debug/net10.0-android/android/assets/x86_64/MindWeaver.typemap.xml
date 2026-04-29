@@ -1,0 +1,10 @@
+<api type="debug" assembly-name="MindWeaver" mvid="7488165528724039810580e17f861dfd">
+  <java-to-managed>
+    <entry java-name="crc6452868d1234b18c47/MainActivity" managed-name="MindWeaver.MainActivity, MindWeaver" managed-type-token-id="33554444" />
+    <entry java-name="crc6452868d1234b18c47/MainApplication" managed-name="MindWeaver.MainApplication, MindWeaver" managed-type-token-id="33554445" />
+  </java-to-managed>
+  <managed-to-java>
+    <entry java-name="crc6452868d1234b18c47/MainActivity" managed-name="MindWeaver.MainActivity, MindWeaver" managed-type-token-id="33554444" />
+    <entry java-name="crc6452868d1234b18c47/MainApplication" managed-name="MindWeaver.MainApplication, MindWeaver" managed-type-token-id="33554445" />
+  </managed-to-java>
+</api>

@@ -1,0 +1,159 @@
+@page "/folder/{FolderId:guid}"
+@using MindWeaver.ViewModels
+@using MindWeaver.Models
+@inject FoldersViewModel FoldersViewModel
+@inject NavigationManager Nav
+
+<PageTitle>@(_folder?.Name ?? "Folder") — MindWeaver</PageTitle>
+
+<MudStack Spacing="3">
+
+
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                           Color="Color.Default"
+                           Title="Back to Organizer"
+                           OnClick="GoToOrganizer" />
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Color="Color.Secondary" Size="Size.Large" />
+            <MudText Typo="Typo.h5">
+                @(_folder?.Name ?? "Loading…")
+            </MudText>
+            @if (_folder is not null)
+            {
+                <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined">
+                    @_folder.Notes.Count note@(_folder.Notes.Count == 1 ? "" : "s")
+                </MudChip>
+            }
+        </MudStack>
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Add"
+                   OnClick="GoToNewNote">
+            New Note
+        </MudButton>
+    </MudStack>
+
+    <MudDivider />
+
+
+    @if (FoldersViewModel.IsBusy)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-2" />
+    }
+
+
+    @if (!FoldersViewModel.IsBusy && _folder is null)
+    {
+        <MudAlert Severity="Severity.Warning" Icon="@Icons.Material.Filled.FolderOff">
+            Folder not found.
+            <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="GoToOrganizer">
+                Go to Organizer
+            </MudButton>
+        </MudAlert>
+    }
+
+
+    @if (!FoldersViewModel.IsBusy && _folder is not null && !_folder.Notes.Any())
+    {
+        <MudStack AlignItems="AlignItems.Center" Spacing="2" Class="py-12">
+            <MudIcon Icon="@Icons.Material.Filled.NoteAdd"
+                     Style="font-size: 3.5rem;"
+                     Class="mud-text-secondary" />
+            <MudText Typo="Typo.h6" Class="mud-text-secondary">This folder is empty</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                Drag notes here from the Organizer, or create a new note.
+            </MudText>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       OnClick="GoToNewNote">
+                New Note
+            </MudButton>
+        </MudStack>
+    }
+
+
+    @if (!FoldersViewModel.IsBusy && _folder is not null && _folder.Notes.Any())
+    {
+        <MudGrid Spacing="3">
+            @foreach (var note in _folder.Notes.OrderByDescending(n => n.UpdatedAt).ToList())
+            {
+                var noteId = note.Id;
+                <MudItem xs="12" sm="6" md="4">
+                    <MudCard Elevation="2" Class="rounded-lg fn-card" @onclick="() => OpenNote(noteId)">
+                        <MudCardHeader Class="pb-1">
+                            <CardHeaderAvatar>
+                                <MudAvatar Color="Color.Secondary" Variant="Variant.Filled" Size="Size.Small">
+                                    <MudIcon Icon="@Icons.Material.Filled.Note" />
+                                </MudAvatar>
+                            </CardHeaderAvatar>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.body1" Style="font-weight: 600; line-height: 1.3;">
+                                    @(string.IsNullOrWhiteSpace(note.Title) ? "(Untitled)" : note.Title)
+                                </MudText>
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                                    @note.UpdatedAt.ToLocalTime().ToString("MMM d, yyyy")
+                                </MudText>
+                            </CardHeaderContent>
+                        </MudCardHeader>
+                        @if (!string.IsNullOrWhiteSpace(note.Content))
+                        {
+                            <MudCardContent Class="pt-0">
+                                <MudText Typo="Typo.body2" Class="mud-text-secondary"
+                                         Style="display: -webkit-box; -webkit-line-clamp: 3;
+                                                -webkit-box-orient: vertical; overflow: hidden;">
+                                    @note.Content
+                                </MudText>
+                            </MudCardContent>
+                        }
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+
+</MudStack>
+
+<style>
+    .fn-card {
+        cursor: pointer;
+        transition: box-shadow 0.2s, transform 0.15s;
+    }
+    .fn-card:hover {
+        box-shadow: 0 6px 20px rgba(0,0,0,0.14) !important;
+        transform: translateY(-2px);
+    }
+</style>
+
+@code {
+    [Parameter]
+    public Guid FolderId { get; set; }
+
+    private Folder? _folder;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!FoldersViewModel.Folders.Any())
+            await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+
+        ResolveFolder();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Fires when navigating directly between /folder/xxx and /folder/yyy
+        if (!FoldersViewModel.Folders.Any())
+            await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+
+        ResolveFolder();
+    }
+
+    private void ResolveFolder()
+        => _folder = FoldersViewModel.Folders.FirstOrDefault(f => f.Id == FolderId);
+
+
+    private void OpenNote(Guid id)    => Nav.NavigateTo("/editor/" + id);
+    private void GoToOrganizer()      => Nav.NavigateTo("/organizer");
+    private void GoToNewNote()        => Nav.NavigateTo("/editor");
+}

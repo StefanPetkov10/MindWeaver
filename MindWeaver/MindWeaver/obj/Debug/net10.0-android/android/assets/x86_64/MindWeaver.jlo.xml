@@ -1,0 +1,15 @@
+<api>
+  <jcw-types>
+    <type name="MainActivity" package="crc6452868d1234b18c47" application_java_class="android.app.Application" mono_runtime_initialization="mono.MonoPackageManager.LoadApplication (context);" extends_type="crc6488302ad6e9e4df1a.MauiAppCompatActivity" partial_assembly_qualified_name="MindWeaver.MainActivity, MindWeaver">
+      <constructors>
+        <constructor name="MainActivity" method="n_.ctor:()V:" jni_signature="()V" managed_parameters="" retval="void" is_dynamically_registered="True" />
+        <constructor name="MainActivity" method="n_.ctor:(I)V:" jni_signature="(I)V" managed_parameters="System.Int32, System.Private.CoreLib" params="int p0" retval="void" is_dynamically_registered="True" super_call="p0" activate_call="p0" />
+      </constructors>
+    </type>
+    <type name="MainApplication" package="crc6452868d1234b18c47" application_java_class="android.app.Application" mono_runtime_initialization="mono.MonoPackageManager.LoadApplication (context);" extends_type="crc6488302ad6e9e4df1a.MauiApplication" is_application="True" partial_assembly_qualified_name="MindWeaver.MainApplication, MindWeaver" application_constructor="MainApplication" />
+  </jcw-types>
+  <acw-types partial-assembly-name="MindWeaver" module-name="MindWeaver.dll">
+    <type assembly-qualified-name="MindWeaver.MainActivity, MindWeaver, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" compat-jni-name="mindweaver.MainActivity" java-key="crc6452868d1234b18c47.MainActivity" managed-key="MindWeaver.MainActivity" partial-assembly-qualified-name="MindWeaver.MainActivity, MindWeaver" />
+    <type assembly-qualified-name="MindWeaver.MainApplication, MindWeaver, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null" compat-jni-name="mindweaver.MainApplication" java-key="crc6452868d1234b18c47.MainApplication" managed-key="MindWeaver.MainApplication" partial-assembly-qualified-name="MindWeaver.MainApplication, MindWeaver" />
+  </acw-types>
+</api>

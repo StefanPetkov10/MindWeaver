@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+@using MindWeaver.ViewModels
+@inject FoldersViewModel FoldersViewModel
+
+<MudThemeProvider />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Dense="true">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-2">MindWeaver</MudText>
+        <MudSpacer />
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" ClipMode="DrawerClipMode.Always">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">Navigation</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="my-4 pt-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Load folders once at shell level so NavMenu is always populated,
+        // regardless of which page the user lands on first.
+        await FoldersViewModel.LoadFoldersCommand.ExecuteAsync(null);
+    }
+
+    private void ToggleDrawer()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+}

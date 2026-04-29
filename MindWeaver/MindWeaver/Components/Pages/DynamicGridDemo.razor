@@ -1,0 +1,232 @@
+@page "/grid-demo"
+@using MindWeaver.Data
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+
+<PageTitle>Dynamic Data Grid – MindWeaver</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-6">
+
+    <MudText Typo="Typo.h4" GutterBottom="true">Dynamic Data Grid Demo</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-6">
+        One generic component &lt;DynamicDataGrid TItem="..."&gt; drives both tables below.
+        Columns are swapped at runtime; clicking any row returns the <b>full object</b>
+        (including Id, even when it is not a visible column).
+    </MudText>
+
+    @* ══════════════════════════════════════════════════════════════════════ *@
+    @*  NOTE TABLE                                                            *@
+    @* ══════════════════════════════════════════════════════════════════════ *@
+
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Notes" Class="mr-1" Style="vertical-align:middle"/>
+        Notes
+    </MudText>
+
+    @* ── Action toolbar ───────────────────────────────────────────────────── *@
+    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-3">
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="LoadNotes">
+            Load Notes
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   OnClick="ClearNotes">
+            Clear Notes
+        </MudButton>
+
+        <MudDivider Vertical="true" FlexItem="true" Class="mx-1" />
+
+        <MudButton Variant="@(_noteColMode == 0 ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Secondary"
+                   OnClick="ShowTitleOnly">
+            Show Title Only
+        </MudButton>
+
+        <MudButton Variant="@(_noteColMode == 1 ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Secondary"
+                   OnClick="ShowTitleAndDate">
+            Show Title &amp; Date
+        </MudButton>
+
+        <MudButton Variant="@(_noteColMode == 2 ? Variant.Filled : Variant.Outlined)"
+                   Color="Color.Secondary"
+                   OnClick="ShowAllNoteColumns">
+            Show All Columns
+        </MudButton>
+
+    </MudStack>
+
+    @* ── The generic grid for Notes ───────────────────────────────────────── *@
+    <DynamicDataGrid TItem="Note"
+                     Items="_notes"
+                     VisibleColumns="_noteColumns"
+                     OnItemSelected="OnNoteSelected" />
+
+    @* ── Selected Note details ────────────────────────────────────────────── *@
+    @if (_selectedNote is not null)
+    {
+        <MudAlert Severity="Severity.Info" Class="mt-3" Icon="@Icons.Material.Filled.CheckCircle">
+            <MudText Typo="Typo.subtitle2" Class="mb-1">
+                ✅ Full Note object returned (Id was NOT in VisibleColumns):
+            </MudText>
+            <MudGrid Spacing="1">
+                <MudItem xs="12" sm="6"><b>Id:</b> @_selectedNote.Id</MudItem>
+                <MudItem xs="12" sm="6"><b>Title:</b> @_selectedNote.Title</MudItem>
+                <MudItem xs="12" sm="6"><b>Created:</b> @_selectedNote.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudItem>
+                <MudItem xs="12" sm="6"><b>Folder:</b> @(_selectedNote.Folder?.Name ?? "Unfiled")</MudItem>
+                <MudItem xs="12"><b>Content preview:</b> @(_selectedNote.Content.Length > 120 ? _selectedNote.Content[..120] + "…" : _selectedNote.Content)</MudItem>
+            </MudGrid>
+        </MudAlert>
+    }
+
+    <MudDivider Class="my-8" />
+
+    @* ══════════════════════════════════════════════════════════════════════ *@
+    @*  FOLDER TABLE                                                          *@
+    @* ══════════════════════════════════════════════════════════════════════ *@
+
+    <MudText Typo="Typo.h6" Class="mb-2">
+        <MudIcon Icon="@Icons.Material.Filled.Folder" Class="mr-1" Style="vertical-align:middle"/>
+        Folders
+    </MudText>
+
+    <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="2" Class="mb-3">
+
+        <MudButton Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.Download"
+                   OnClick="LoadFolders">
+            Load Folders
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined"
+                   Color="Color.Error"
+                   StartIcon="@Icons.Material.Filled.Clear"
+                   OnClick="ClearFolders">
+            Clear Folders
+        </MudButton>
+
+    </MudStack>
+
+    @* ── The exact same generic component, now for Folders ────────────────── *@
+    <DynamicDataGrid TItem="Folder"
+                     Items="_folders"
+                     VisibleColumns="_folderColumns"
+                     OnItemSelected="OnFolderSelected" />
+
+    @* ── Selected Folder details ──────────────────────────────────────────── *@
+    @if (_selectedFolder is not null)
+    {
+        <MudAlert Severity="Severity.Success" Class="mt-3" Icon="@Icons.Material.Filled.CheckCircle">
+            <MudText Typo="Typo.subtitle2" Class="mb-1">
+                ✅ Full Folder object returned (Id was NOT in VisibleColumns):
+            </MudText>
+            <MudGrid Spacing="1">
+                <MudItem xs="12" sm="4"><b>Id:</b> @_selectedFolder.Id</MudItem>
+                <MudItem xs="12" sm="4"><b>Name:</b> @_selectedFolder.Name</MudItem>
+                <MudItem xs="12" sm="4"><b>Icon:</b> @_selectedFolder.Icon</MudItem>
+                <MudItem xs="12" sm="4"><b>Sort Order:</b> @_selectedFolder.OrderIndex</MudItem>
+                <MudItem xs="12" sm="4"><b>Note count:</b> @_selectedFolder.Notes.Count</MudItem>
+            </MudGrid>
+        </MudAlert>
+    }
+
+</MudContainer>
+
+@code {
+
+    // ── Data ──────────────────────────────────────────────────────────────────
+
+    private IEnumerable<Note>   _notes   = Enumerable.Empty<Note>();
+    private IEnumerable<Folder> _folders = Enumerable.Empty<Folder>();
+
+    // ── Column lists — changing these instantly re-renders the grid ───────────
+
+    private List<string> _noteColumns   = new() { "Title", "CreatedAt", "UpdatedAt" };
+    private List<string> _folderColumns = new() { "Name", "Icon", "OrderIndex" };
+
+    // Tracks which column preset button is "active" for styling
+    private int _noteColMode = 2;
+
+    // ── Selected row (full object) ────────────────────────────────────────────
+
+    private Note?   _selectedNote   = null;
+    private Folder? _selectedFolder = null;
+
+    // ── Data loading ──────────────────────────────────────────────────────────
+
+    private async Task LoadNotes()
+    {
+        _selectedNote = null;
+        _notes = await Db.Notes
+            .Include(n => n.Folder)
+            .OrderByDescending(n => n.CreatedAt)
+            .ToListAsync();
+    }
+
+    private void ClearNotes()
+    {
+        _notes        = Enumerable.Empty<Note>();
+        _selectedNote = null;
+    }
+
+    private async Task LoadFolders()
+    {
+        _selectedFolder = null;
+        _folders = await Db.Folders
+            .Include(f => f.Notes)
+            .OrderBy(f => f.OrderIndex)
+            .ToListAsync();
+    }
+
+    private void ClearFolders()
+    {
+        _folders        = Enumerable.Empty<Folder>();
+        _selectedFolder = null;
+    }
+
+    // ── Column switching — proves requirement #3 ──────────────────────────────
+
+    private void ShowTitleOnly()
+    {
+        // Completely replace the list — Blazor detects the change and re-renders
+        _noteColumns  = new() { "Title" };
+        _noteColMode  = 0;
+    }
+
+    private void ShowTitleAndDate()
+    {
+        _noteColumns = new() { "Title", "CreatedAt" };
+        _noteColMode = 1;
+    }
+
+    private void ShowAllNoteColumns()
+    {
+        _noteColumns = new() { "Title", "CreatedAt", "UpdatedAt" };
+        _noteColMode = 2;
+    }
+
+    // ── Row selection callbacks ───────────────────────────────────────────────
+
+    /// <summary>
+    /// Receives the FULL Note object regardless of which columns are visible.
+    /// The Id is shown in the alert panel even though it is never a column.
+    /// </summary>
+    private void OnNoteSelected(Note note)
+    {
+        _selectedNote   = note;
+        _selectedFolder = null;   // clear the other selection
+    }
+
+    private void OnFolderSelected(Folder folder)
+    {
+        _selectedFolder = folder;
+        _selectedNote   = null;
+    }
+}
